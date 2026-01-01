@@ -14,7 +14,6 @@ import networkx as nx
 import numpy as np
 import numpy.typing as npt
 import yaml
-from graphviz import Digraph
 from kfactory import (
     DInstance,
     DInstances,
@@ -1264,38 +1263,6 @@ class Component(ComponentBase, kf.DKCell):
             pos=pos,
         )
         return G
-
-    def plot_netlist_graphviz(
-        self, recursive: bool = False, interactive: bool = False, splines: str = "ortho"
-    ) -> None:
-        """Plots a netlist graph with graphviz.
-
-        Args:
-            recursive: if True, returns a recursive netlist.
-            interactive: if True, opens the graph in a browser.
-            splines: ortho, spline, polyline, line, curved.
-        """
-        from gdsfactory.schematic import plot_graphviz
-
-        n = self.to_graphviz(
-            recursive=recursive,
-        )
-        plot_graphviz(n, splines=splines, interactive=interactive)
-
-    def to_graphviz(self, recursive: bool = False) -> Digraph:
-        """Returns a netlist graph with graphviz.
-
-        Args:
-            recursive: if True, returns a recursive netlist.
-        """
-        from gdsfactory.schematic import to_graphviz
-
-        netlist = self.get_netlist(recursive=recursive)
-        return to_graphviz(
-            netlist["instances"],
-            placements=netlist["placements"],
-            nets=netlist["nets"],
-        )
 
     def fill(
         self,

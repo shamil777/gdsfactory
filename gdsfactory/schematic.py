@@ -5,7 +5,6 @@ from typing import Any, Self
 
 import networkx as nx
 import yaml
-from graphviz import Digraph
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 import gdsfactory as gf
@@ -239,105 +238,7 @@ def to_yaml_graph_networkx(
     return graph, labels, pos
 
 
-def to_graphviz(
-    instances: dict[str, Instance],
-    placements: dict[str, Placement],
-    nets: list[Net],
-    show_ports: bool = True,
-) -> Digraph:
-    """Generates a netlist graph using Graphviz."""
-    from graphviz import Digraph
 
-    # Graphviz implementation
-    dot = Digraph(comment="Netlist Diagram")
-    dot.attr(dpi="300", layout="neato", overlap="false")
-
-    all_ports: list[tuple[str, Ports]] = []
-
-    # Retrieve all the ports in the component
-    for name, instance in instances.items():
-        if hasattr(instance, "component"):
-            instance_component = instance.component
-        else:
-            instance_component = instance["component"]  # type: ignore[index]
-        ports_ = gf.get_component(instance_component).ports
-        all_ports.append((name, ports_))
-
-    for node, placement in placements.items():
-        ports = dict(all_ports).get(node)
-        assert ports is not None
-
-        if not ports or not show_ports:
-            label = node
-        else:
-            top_ports: list[Port] = []
-            right_ports: list[Port] = []
-            bottom_ports: list[Port] = []
-            left_ports: list[Port] = []
-
-            for port in ports:
-                if 0 <= port.orientation < 45 or 315 <= port.orientation < 360:
-                    right_ports.append(port)
-                elif 45 <= port.orientation < 135:
-                    bottom_ports.append(port)
-                elif 135 <= port.orientation < 225:
-                    left_ports.append(port)
-                elif 225 <= port.orientation < 315:
-                    top_ports.append(port)
-
-            # Format ports for Graphviz record structure in anticlockwise order
-            port_labels: list[str] = []
-
-            if left_ports:
-                left_ports_label = " | ".join(
-                    f"<{port.name}> {port.name}" for port in reversed(left_ports)
-                )
-                port_labels.append(f"{{ {left_ports_label} }}")
-
-            middle_row: list[str] = []
-
-            if top_ports:
-                top_ports_label = " | ".join(
-                    f"<{port.name}> {port.name}" for port in top_ports
-                )
-                middle_row.append(f"{{ {top_ports_label} }}")
-
-            middle_row.append(node)
-
-            if bottom_ports:
-                bottom_ports_label = " | ".join(
-                    f"<{port.name}> {port.name}" for port in reversed(bottom_ports)
-                )
-                middle_row.append(f"{{ {bottom_ports_label} }}")
-
-            port_labels.append(f"{{ {' | '.join(middle_row)} }}")
-
-            if right_ports:
-                right_ports_label = " | ".join(
-                    f"<{port.name}> {port.name}" for port in right_ports
-                )
-                port_labels.append(f"{{ {right_ports_label} }}")
-
-            label = " | ".join(port_labels)
-
-        x = placement.x if hasattr(placement, "x") else placement["x"]
-        y = placement.y if hasattr(placement, "y") else placement["y"]
-        pos = f"{x},{y}!"
-        dot.node(node, label=label, pos=pos, shape="record")
-
-    for net in nets:
-        p1 = net.p1 if hasattr(net, "p1") else net["p1"]  # type: ignore[index]
-        p2 = net.p2 if hasattr(net, "p2") else net["p2"]  # type: ignore[index]
-
-        p1_instance = p1.split(",")[0]
-        p1_port = p1.split(",")[1]
-
-        p2_instance = p2.split(",")[0]
-        p2_port = p2.split(",")[1]
-
-        dot.edge(f"{p1_instance}:{p1_port}", f"{p2_instance}:{p2_port}", dir="none")
-
-    return dot
 
 
 class Link(BaseModel):
@@ -401,31 +302,10 @@ class Schematic(BaseModel):
         else:
             self.netlist.routes[net.name].links[net.p1] = net.p2
 
-    def to_graphviz(self, show_ports: bool = True) -> Digraph:
-        """Generates a netlist graph using Graphviz.
-
-        Args:
-            show_ports: whether to show ports or not.
-        """
-        return to_graphviz(
-            self.netlist.instances, self.placements, self.nets, show_ports
-        )
-
     def to_yaml_graph_networkx(
         self,
     ) -> tuple[nx.Graph, dict[str, str], dict[str, tuple[float, float]]]:
         return to_yaml_graph_networkx(self.netlist, self.nets)
-
-    def plot_graphviz(self, interactive: bool = False, splines: str = "ortho") -> None:
-        """Plots the netlist graph (Automatic fallback to networkx).
-
-        Args:
-            interactive: whether to plot the graph interactively or not.
-            splines: type of splines to use for the graph.
-
-        """
-        dot = self.to_graphviz()
-        plot_graphviz(dot, interactive=interactive, splines=splines)
 
     def write_netlist(
         self, netlist: dict[str, Any], filepath: str | pathlib.Path | None = None
@@ -441,25 +321,6 @@ class Schematic(BaseModel):
             filepath = pathlib.Path(filepath)
             filepath.write_text(yaml_string)
         return yaml_string
-
-
-def plot_graphviz(
-    graph: Digraph, interactive: bool = False, splines: str = "ortho"
-) -> None:
-    """Plots the netlist graph (Automatic fallback to networkx)."""
-    from IPython.display import Image, display
-
-    valid_splines = ["ortho", "spline", "line", "polyline", "curved"]
-    if splines not in valid_splines:
-        raise ValueError(f"Invalid splines value. Choose from {valid_splines}")
-
-    graph.graph_attr["splines"] = splines
-
-    if interactive:
-        graph.view()
-    else:
-        png_data = graph.pipe(format="png")
-        display(Image(data=png_data))
 
 
 def write_schema(

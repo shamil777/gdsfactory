@@ -40,7 +40,6 @@ dependencies = [
   "trimesh>=4.4.1",
   "ipykernel",
   "attrs",
-  "graphviz",
   "pyglet<3",
   "typing-extensions",
   "pygit2"
